@@ -1,0 +1,88 @@
+---
+- name: Instalar Docker e rodar aplicação Java
+  hosts: targets
+  become: true
+
+  vars:
+    docker_apt_keyring: /etc/apt/keyrings/docker.gpg
+
+  tasks:
+    - name: Atualizar cache de pacotes
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Instalar dependências básicas
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - python3-pip
+        state: present
+
+    - name: Criar diretório de keyrings
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Adicionar chave GPG do Docker
+      shell: |
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o {{ docker_apt_keyring }}
+      args:
+        creates: "{{ docker_apt_keyring }}"
+
+    - name: Adicionar repositório do Docker
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by={{ docker_apt_keyring }}] https://download.docker.com/linux/ubuntu focal stable"
+        state: present
+        filename: docker
+
+    - name: Atualizar cache após adicionar repo
+      apt:
+        update_cache: yes
+
+    - name: Instalar Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Habilitar e iniciar Docker
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Instalar Docker SDK para Python
+      pip:
+        name: docker
+
+    - name: Garantir grupo docker existe
+      group:
+        name: docker
+        state: present
+
+    - name: Adicionar usuário ao grupo docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Resetar conexão SSH para aplicar grupo docker
+      meta: reset_connection
+
+    - name: Rodar container da aplicação Java
+      docker_container:
+        name: java-api
+        image: iesodias/java-api:latest
+        state: started
+        restart_policy: always
+        ports:
+          - "8081:8081"
+

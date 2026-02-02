@@ -1,0 +1,16 @@
+- name: Configure VM and basics packs
+  hosts: targets
+  become: true
+
+  tasks:
+    - name: Update packs list
+      apt:
+        update_cache: yes
+
+    - name: Install utils packs
+      apt:
+        name:
+          - htop
+          - curl
+          - git
+        state: present
